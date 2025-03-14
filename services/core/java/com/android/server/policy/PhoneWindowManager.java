@@ -231,7 +231,6 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.server.AccessibilityManagerInternal;
 import com.android.server.ExtconStateObserver;
 import com.android.server.ExtconUEventObserver;
-import com.android.server.GestureLauncherService;
 import com.android.server.LocalServices;
 import com.android.server.SystemServiceManager;
 import com.android.server.UiThread;
@@ -771,7 +770,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     private KeyCombinationManager mKeyCombinationManager;
     private SingleKeyGestureDetector mSingleKeyGestureDetector;
-    private GestureLauncherService mGestureLauncherService;
     private ButtonOverridePermissionChecker mButtonOverridePermissionChecker;
 
     private boolean mLockNowPending = false;
@@ -1209,71 +1207,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         mWindowManagerFuncs.onPowerKeyDown(interactive);
 
-        // Stop ringing or end call if configured to do so when power is pressed.
-        TelecomManager telecomManager = getTelecommService();
-        boolean hungUp = false;
-        if (telecomManager != null) {
-            if (telecomManager.isRinging()) {
-                // Pressing Power while there's a ringing incoming
-                // call should silence the ringer.
-                telecomManager.silenceRinger();
-            } else if ((mIncallPowerBehavior
-                    & Settings.Secure.INCALL_POWER_BUTTON_BEHAVIOR_HANGUP) != 0
-                    && telecomManager.isInCall() && interactive) {
-                // Otherwise, if "Power button ends call" is enabled,
-                // the Power button will hang up any current active call.
-                hungUp = telecomManager.endCall();
-            }
-        }
-
-        final boolean handledByPowerManager = mPowerManagerInternal.interceptPowerKeyDown(event);
-
-        // Inform the StatusBar; but do not allow it to consume the event.
-        sendSystemKeyToStatusBarAsync(event);
-
-        // If the power key has still not yet been handled, then detect short
-        // press, long press, or multi press and decide what to do.
-        mPowerKeyHandled = mPowerKeyHandled || hungUp
-                || handledByPowerManager || mKeyCombinationManager.isPowerKeyIntercepted();
-        if (!mPowerKeyHandled) {
-            mResolvedLongPressOnPowerBehavior = getResolvedLongPressOnPowerBehavior();
-            if (!interactive) {
-                if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0) {
-                    wakeUpFromWakeKey(event);
-                } else if (mSupportLongPressPowerWhenNonInteractive &&
-                        hasLongPressOnPowerBehavior()) {
-                    if (mResolvedLongPressOnPowerBehavior != LONG_PRESS_POWER_TORCH) {
-                        wakeUpFromWakeKey(event);
-                    }
-                }
-            }
-        } else {
-            // handled by another power key policy.
-            if (mSingleKeyGestureDetector.isKeyIntercepted(KEYCODE_POWER)) {
-                Slog.d(TAG, "Skip power key gesture for other policy has handled it.");
-                mSingleKeyGestureDetector.reset();
-            }
-        }
+        // for our Ai assistant, we need to be able to intercept the power key user-app level.
+        mPowerKeyHandled = false;
     }
 
     private void interceptPowerKeyUp(KeyEvent event, boolean canceled) {
-        // Inform the StatusBar; but do not allow it to consume the event.
-        sendSystemKeyToStatusBarAsync(event);
-
-        final boolean handled = canceled || mPowerKeyHandled;
-
-        if (!handled) {
-            if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) == 0) {
-                // Abort possibly stuck animations only when power key up without long press case.
-                mHandler.post(mWindowManagerFuncs::triggerAnimationFailsafe);
-                // See if we deferred screen wake because long press power for torch is enabled
-                if (mResolvedLongPressOnPowerBehavior == LONG_PRESS_POWER_TORCH &&
-                        (!isScreenOn() || isDozeMode())) {
-                    wakeUpFromWakeKey(event);
-                }
-            }
-        }
-
         finishPowerKeyPress();
     }
 
@@ -1308,98 +1246,45 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         + count
                         + " mShortPressOnPowerBehavior="
                         + mShortPressOnPowerBehavior);
-
-        if (count == 2) {
-            powerMultiPressAction(eventTime, interactive, mDoublePressOnPowerBehavior);
-        } else if (count == 3) {
-            powerMultiPressAction(eventTime, interactive, mTriplePressOnPowerBehavior);
-        } else if (count > 3 && count <= getMaxMultiPressPowerCount()) {
-            Slog.d(TAG, "No behavior defined for power press count " + count);
-        } else if (count == 1 && shouldHandleShortPressPowerAction(interactive, eventTime)) {
-            switch (mShortPressOnPowerBehavior) {
-                case SHORT_PRESS_POWER_NOTHING:
-                    break;
-                case SHORT_PRESS_POWER_GO_TO_SLEEP:
-                    sleepDefaultDisplayFromPowerButton(eventTime, 0);
-                    break;
-                case SHORT_PRESS_POWER_REALLY_GO_TO_SLEEP:
-                    sleepDefaultDisplayFromPowerButton(eventTime,
-                            PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE);
-                    break;
-                case SHORT_PRESS_POWER_REALLY_GO_TO_SLEEP_AND_GO_HOME:
-                    if (sleepDefaultDisplayFromPowerButton(eventTime,
-                            PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE)) {
-                        launchHomeFromHotKey(DEFAULT_DISPLAY);
-                    }
-                    break;
-                case SHORT_PRESS_POWER_GO_HOME:
-                    shortPressPowerGoHome();
-                    break;
-                case SHORT_PRESS_POWER_CLOSE_IME_OR_GO_HOME: {
-                    if (mDismissImeOnBackKeyPressed) {
-                        // TODO(b/308479256): Check if hiding "all" IMEs is OK or not.
-                        InputMethodManagerInternal.get().hideAllInputMethods(
-                                SoftInputShowHideReason.HIDE_POWER_BUTTON_GO_HOME, displayId);
-                    } else {
-                        shortPressPowerGoHome();
-                    }
-                    break;
-                }
-                case SHORT_PRESS_POWER_LOCK_OR_SLEEP: {
-                    if (mKeyguardDelegate == null || !mKeyguardDelegate.hasKeyguard()
-                            || !mKeyguardDelegate.isSecure(mCurrentUserId) || keyguardOn()) {
-                        sleepDefaultDisplayFromPowerButton(eventTime, 0);
-                    } else {
-                        lockNow(null /*options*/);
-                    }
-                    break;
-                }
-                case SHORT_PRESS_POWER_DREAM_OR_SLEEP: {
-                    attemptToDreamFromShortPowerButtonPress(
-                            true,
-                            () -> sleepDefaultDisplayFromPowerButton(eventTime, 0));
-                    break;
-                }
-            }
-        }
     }
 
     private boolean shouldHandleShortPressPowerAction(boolean interactive, long eventTime) {
-        if (mSupportShortPressPowerWhenDefaultDisplayOn) {
-            final boolean defaultDisplayOn = Display.isOnState(mDefaultDisplay.getState());
-            final boolean beganFromDefaultDisplayOn =
-                    mSingleKeyGestureDetector.beganFromDefaultDisplayOn();
-            if (!defaultDisplayOn || !beganFromDefaultDisplayOn) {
-                Slog.v(
-                        TAG,
-                        "Ignoring short press of power button because the default display is not"
-                                + " on. defaultDisplayOn="
-                                + defaultDisplayOn
-                                + ", beganFromDefaultDisplayOn="
-                                + beganFromDefaultDisplayOn);
-                return false;
-            }
-            return true;
-        }
-        final boolean beganFromNonInteractive = mSingleKeyGestureDetector.beganFromNonInteractive();
-        if (!interactive || beganFromNonInteractive) {
-            Slog.v(
-                    TAG,
-                    "Ignoring short press of power button because the device is not interactive."
-                            + " interactive="
-                            + interactive
-                            + ", beganFromNonInteractive="
-                            + beganFromNonInteractive);
-            return false;
-        }
-        if (mSideFpsEventHandler.shouldConsumeSinglePress(eventTime)) {
-            Slog.i(
-                    TAG,
-                    "Suppressing power key because the user is interacting with the "
-                            + "fingerprint sensor");
-            return false;
-        }
-        return true;
+        return false;
+//        if (mSupportShortPressPowerWhenDefaultDisplayOn) {
+//            final boolean defaultDisplayOn = Display.isOnState(mDefaultDisplay.getState());
+//            final boolean beganFromDefaultDisplayOn =
+//                    mSingleKeyGestureDetector.beganFromDefaultDisplayOn();
+//            if (!defaultDisplayOn || !beganFromDefaultDisplayOn) {
+//                Slog.v(
+//                        TAG,
+//                        "Ignoring short press of power button because the default display is not"
+//                                + " on. defaultDisplayOn="
+//                                + defaultDisplayOn
+//                                + ", beganFromDefaultDisplayOn="
+//                                + beganFromDefaultDisplayOn);
+//                return false;
+//            }
+//            return true;
+//        }
+//        final boolean beganFromNonInteractive = mSingleKeyGestureDetector.beganFromNonInteractive();
+//        if (!interactive || beganFromNonInteractive) {
+//            Slog.v(
+//                    TAG,
+//                    "Ignoring short press of power button because the device is not interactive."
+//                            + " interactive="
+//                            + interactive
+//                            + ", beganFromNonInteractive="
+//                            + beganFromNonInteractive);
+//            return false;
+//        }
+//        if (mSideFpsEventHandler.shouldConsumeSinglePress(eventTime)) {
+//            Slog.i(
+//                    TAG,
+//                    "Suppressing power key because the user is interacting with the "
+//                            + "fingerprint sensor");
+//            return false;
+//        }
+//        return true;
     }
 
     /**
@@ -1551,24 +1436,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private int getMaxMultiPressPowerCount() {
-        // The actual max power button press count is 5
-        // (EMERGENCY_GESTURE_POWER_TAP_COUNT_THRESHOLD), which is coming from
-        // GestureLauncherService.
-        // To speed up the handling of single-press of power button inside SingleKeyGestureDetector,
-        // however, we limit the max count to the number of button presses actually handled by the
-        // SingleKeyGestureDetector except for wearable devices, where we want to de-dup the double
-        // press gesture with the emergency gesture.
-        if (mHasFeatureWatch
-                && GestureLauncherService.isEmergencyGestureSettingEnabled(
-                        mContext, ActivityManager.getCurrentUser())) {
-            return 5;
-        }
-        if (mTriplePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
-            return 3;
-        }
-        if (mDoublePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
-            return 2;
-        }
         return 1;
     }
 
@@ -5800,29 +5667,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mSingleKeyGestureDetector.interceptKey(event, interactive, defaultDisplayOn);
     }
 
-    // The camera gesture will be detected by GestureLauncherService.
     private boolean handleCameraGesture(KeyEvent event, boolean interactive) {
-        // camera gesture.
-        if (mGestureLauncherService == null) {
-            return false;
-        }
-        mCameraGestureTriggered = false;
-        final MutableBoolean outLaunched = new MutableBoolean(false);
-        final boolean intercept =
-                mGestureLauncherService.interceptPowerKeyDown(event, interactive, outLaunched);
-        if (!outLaunched.value) {
-            // If GestureLauncherService intercepted the power key, but didn't launch camera app,
-            // we should still return the intercept result. This prevents the single key gesture
-            // detector from processing the power key later on.
-            return intercept;
-        }
-        mCameraGestureTriggered = true;
-        if (mRequestedOrSleepingDefaultDisplay) {
-            mCameraGestureTriggeredDuringGoingToSleep = true;
-            // Wake device up early to prevent display doing redundant turning off/on stuff.
-            mWindowWakeUpPolicy.wakeUpFromPowerKeyCameraGesture();
-        }
-        return true;
+        return false;
     }
 
     /**
@@ -6743,7 +6589,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         mAutofillManagerInternal = LocalServices.getService(AutofillManagerInternal.class);
-        mGestureLauncherService = LocalServices.getService(GestureLauncherService.class);
     }
 
     /** {@inheritDoc} */

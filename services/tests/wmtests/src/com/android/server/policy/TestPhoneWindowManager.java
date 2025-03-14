@@ -94,7 +94,6 @@ import com.android.dx.mockito.inline.extended.StaticMockitoSession;
 import com.android.internal.accessibility.AccessibilityShortcutController;
 import com.android.internal.policy.KeyInterceptionInfo;
 import com.android.internal.util.FrameworkStatsLog;
-import com.android.server.GestureLauncherService;
 import com.android.server.LocalServices;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.input.KeyboardMetricsCollector.KeyboardLogEvent;
@@ -160,7 +159,6 @@ class TestPhoneWindowManager {
     @Mock private DisplayRotation mDisplayRotation;
     @Mock private DisplayPolicy mDisplayPolicy;
     @Mock private WindowManagerPolicy.ScreenOnListener mScreenOnListener;
-    @Mock private GestureLauncherService mGestureLauncherService;
     @Mock private GlobalActions mGlobalActions;
     @Mock private AccessibilityShortcutController mAccessibilityShortcutController;
 
@@ -281,8 +279,6 @@ class TestPhoneWindowManager {
                 () -> LocalServices.getService(eq(PowerManagerInternal.class)));
         doReturn(mDisplayManagerInternal).when(
                 () -> LocalServices.getService(eq(DisplayManagerInternal.class)));
-        doReturn(mGestureLauncherService).when(
-                () -> LocalServices.getService(eq(GestureLauncherService.class)));
         doReturn(mUserManagerInternal).when(
                 () -> LocalServices.getService(eq(UserManagerInternal.class)));
         doReturn(null).when(() -> LocalServices.getService(eq(VrManagerInternal.class)));
@@ -666,13 +662,6 @@ class TestPhoneWindowManager {
     void assertNoPowerSleep() {
         mTestLooper.dispatchAll();
         verify(mPowerManager, never()).goToSleep(anyLong(), anyInt(), anyInt());
-    }
-
-    void assertCameraLaunch() {
-        mTestLooper.dispatchAll();
-        // GestureLauncherService should receive interceptPowerKeyDown twice.
-        verify(mGestureLauncherService, times(2))
-                .interceptPowerKeyDown(any(), anyBoolean(), any());
     }
 
     void assertSearchManagerLaunchAssist() {
