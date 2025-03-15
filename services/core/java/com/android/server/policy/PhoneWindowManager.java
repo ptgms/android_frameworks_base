@@ -1522,59 +1522,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private void powerLongPress(long eventTime) {
-        final int behavior = mResolvedLongPressOnPowerBehavior;
-        Slog.d(TAG, "powerLongPress: eventTime=" + eventTime
-                + " mResolvedLongPressOnPowerBehavior=" + mResolvedLongPressOnPowerBehavior);
-
-        switch (behavior) {
-            case LONG_PRESS_POWER_NOTHING:
-                break;
-            case LONG_PRESS_POWER_GLOBAL_ACTIONS:
-                mPowerKeyHandled = true;
-                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS_POWER_BUTTON, false,
-                        "Power - Long Press - Global Actions");
-                showGlobalActions();
-                break;
-            case LONG_PRESS_POWER_SHUT_OFF:
-            case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
-                mPowerKeyHandled = true;
-                // don't actually trigger the shutdown if we are running stability
-                // tests via monkey
-                if (ActivityManager.isUserAMonkey()) {
-                    break;
-                }
-                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS_POWER_BUTTON, false,
-                        "Power - Long Press - Shut Off");
-                sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
-                mWindowManagerFuncs.shutdown(behavior == LONG_PRESS_POWER_SHUT_OFF);
-                break;
-            case LONG_PRESS_POWER_GO_TO_VOICE_ASSIST:
-                mPowerKeyHandled = true;
-                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS_POWER_BUTTON, false,
-                        "Power - Long Press - Go To Voice Assist");
-                // Some devices allow the voice assistant intent during setup (and use that intent
-                // to launch something else, like Settings). So we explicitly allow that via the
-                // config_allowStartActivityForLongPressOnPowerInSetup resource in config.xml.
-                launchVoiceAssist(mAllowStartActivityForLongPressOnPowerDuringSetup);
-                break;
-            case LONG_PRESS_POWER_ASSISTANT:
-                mPowerKeyHandled = true;
-                performHapticFeedback(HapticFeedbackConstants.ASSISTANT_BUTTON, false,
-                        "Power - Long Press - Go To Assistant");
-                final int powerKeyDeviceId = INVALID_INPUT_DEVICE_ID;
-                launchAssistAction(null, powerKeyDeviceId, eventTime,
-                        AssistUtils.INVOCATION_TYPE_POWER_BUTTON_LONG_PRESS);
-                break;
-            case LONG_PRESS_POWER_TORCH:
-                mPowerKeyHandled = true;
-                // Toggle torch state asynchronously to help protect against
-                // a misbehaving cameraservice from blocking systemui.
-                mHandler.removeMessages(MSG_TOGGLE_TORCH);
-                Message msg = mHandler.obtainMessage(MSG_TOGGLE_TORCH);
-                msg.setAsynchronous(true);
-                msg.sendToTarget();
-                break;
-        }
+        return;
     }
 
     private void powerVeryLongPress() {
