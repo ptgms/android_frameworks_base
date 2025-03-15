@@ -417,32 +417,22 @@ public class GestureLauncherService extends SystemService {
     }
 
     public static boolean isCameraLaunchSettingEnabled(Context context, int userId) {
-        return isCameraLaunchEnabled(context.getResources())
-                && (Settings.Secure.getIntForUser(context.getContentResolver(),
-                        Settings.Secure.CAMERA_GESTURE_DISABLED, 0, userId) == 0);
+        return false;
     }
 
     public static boolean isCameraDoubleTapPowerSettingEnabled(Context context, int userId) {
-        return isCameraDoubleTapPowerEnabled(context.getResources())
-                && (Settings.Secure.getIntForUser(context.getContentResolver(),
-                        Settings.Secure.CAMERA_DOUBLE_TAP_POWER_GESTURE_DISABLED, 0, userId) == 0);
+        return false;
     }
 
     public static boolean isCameraLiftTriggerSettingEnabled(Context context, int userId) {
-        return isCameraLiftTriggerEnabled(context.getResources())
-                && (Settings.Secure.getIntForUser(context.getContentResolver(),
-                        Settings.Secure.CAMERA_LIFT_TRIGGER_ENABLED,
-                        Settings.Secure.CAMERA_LIFT_TRIGGER_ENABLED_DEFAULT, userId) != 0);
+        return false;
     }
 
     /**
      * Whether to enable emergency gesture.
      */
     public static boolean isEmergencyGestureSettingEnabled(Context context, int userId) {
-        return isEmergencyGestureEnabled(context.getResources())
-                && Settings.Secure.getIntForUser(context.getContentResolver(),
-                Settings.Secure.EMERGENCY_GESTURE_ENABLED,
-                isDefaultEmergencyGestureEnabled(context.getResources()) ? 1 : 0, userId) != 0;
+        return false;
     }
 
     /**
@@ -464,34 +454,27 @@ public class GestureLauncherService extends SystemService {
      * Whether to enable the camera launch gesture.
      */
     private static boolean isCameraLaunchEnabled(Resources resources) {
-        boolean configSet = resources.getInteger(
-                com.android.internal.R.integer.config_cameraLaunchGestureSensorType) != -1;
-        return configSet &&
-                !SystemProperties.getBoolean("gesture.disable_camera_launch", false);
+        return false;
     }
 
     @VisibleForTesting
     static boolean isCameraDoubleTapPowerEnabled(Resources resources) {
-        return resources.getBoolean(
-                com.android.internal.R.bool.config_cameraDoubleTapPowerGestureEnabled);
+        return false;
     }
 
     private static boolean isCameraLiftTriggerEnabled(Resources resources) {
-        boolean configSet = resources.getInteger(
-                com.android.internal.R.integer.config_cameraLiftTriggerSensorType) != -1;
-        return configSet;
+        return false;
     }
 
     /**
      * Whether or not the emergency gesture feature is enabled by platform
      */
     private static boolean isEmergencyGestureEnabled(Resources resources) {
-        return resources.getBoolean(com.android.internal.R.bool.config_emergencyGestureEnabled);
+        return false;
     }
 
     private static boolean isDefaultEmergencyGestureEnabled(Resources resources) {
-        return resources.getBoolean(
-                com.android.internal.R.bool.config_defaultEmergencyGestureEnabled);
+        return false;
     }
 
     /**

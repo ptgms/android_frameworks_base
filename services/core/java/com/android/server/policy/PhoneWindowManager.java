@@ -1238,14 +1238,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (!mPowerKeyHandled) {
             mResolvedLongPressOnPowerBehavior = getResolvedLongPressOnPowerBehavior();
             if (!interactive) {
-                if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0) {
-                    wakeUpFromWakeKey(event);
-                } else if (mSupportLongPressPowerWhenNonInteractive &&
-                        hasLongPressOnPowerBehavior()) {
-                    if (mResolvedLongPressOnPowerBehavior != LONG_PRESS_POWER_TORCH) {
-                        wakeUpFromWakeKey(event);
-                    }
-                }
+                wakeUpFromWakeKey(event);
             }
         } else {
             // handled by another power key policy.
@@ -1316,51 +1309,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         } else if (count > 3 && count <= getMaxMultiPressPowerCount()) {
             Slog.d(TAG, "No behavior defined for power press count " + count);
         } else if (count == 1 && shouldHandleShortPressPowerAction(interactive, eventTime)) {
-            switch (mShortPressOnPowerBehavior) {
-                case SHORT_PRESS_POWER_NOTHING:
-                    break;
-                case SHORT_PRESS_POWER_GO_TO_SLEEP:
-                    sleepDefaultDisplayFromPowerButton(eventTime, 0);
-                    break;
-                case SHORT_PRESS_POWER_REALLY_GO_TO_SLEEP:
-                    sleepDefaultDisplayFromPowerButton(eventTime,
-                            PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE);
-                    break;
-                case SHORT_PRESS_POWER_REALLY_GO_TO_SLEEP_AND_GO_HOME:
-                    if (sleepDefaultDisplayFromPowerButton(eventTime,
-                            PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE)) {
-                        launchHomeFromHotKey(DEFAULT_DISPLAY);
-                    }
-                    break;
-                case SHORT_PRESS_POWER_GO_HOME:
-                    shortPressPowerGoHome();
-                    break;
-                case SHORT_PRESS_POWER_CLOSE_IME_OR_GO_HOME: {
-                    if (mDismissImeOnBackKeyPressed) {
-                        // TODO(b/308479256): Check if hiding "all" IMEs is OK or not.
-                        InputMethodManagerInternal.get().hideAllInputMethods(
-                                SoftInputShowHideReason.HIDE_POWER_BUTTON_GO_HOME, displayId);
-                    } else {
-                        shortPressPowerGoHome();
-                    }
-                    break;
-                }
-                case SHORT_PRESS_POWER_LOCK_OR_SLEEP: {
-                    if (mKeyguardDelegate == null || !mKeyguardDelegate.hasKeyguard()
-                            || !mKeyguardDelegate.isSecure(mCurrentUserId) || keyguardOn()) {
-                        sleepDefaultDisplayFromPowerButton(eventTime, 0);
-                    } else {
-                        lockNow(null /*options*/);
-                    }
-                    break;
-                }
-                case SHORT_PRESS_POWER_DREAM_OR_SLEEP: {
-                    attemptToDreamFromShortPowerButtonPress(
-                            true,
-                            () -> sleepDefaultDisplayFromPowerButton(eventTime, 0));
-                    break;
-                }
-            }
+            return;
         }
     }
 
